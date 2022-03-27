@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>WordleAssist</title>
+<style><!--
+body {
+	font-family: Tahoma, Helvetica, sans;
+	background-color: #fff;
+	margin: 0;
+}
+div.center {
+	position: absolute;
+	width: 640px;
+	left: 50%;
+	margin-left: -320px;
+}
+div#header {
+	padding: 20px 4px;
+	font-size: 18px;
+	border-bottom: 2px solid #aaa;
+}
+a {
+	color: #07f;
+	text-decoration: none;
+}
+a:hover {
+	color: #05d;
+}
+div#input {
+	margin-top: 20px;
+	height: 140px;
+}
+p {
+	margin: 0;
+	padding: 10px 4px;
+	font-size: 18px;
+	color: #555;
+}
+p.help {
+	margin-right: 20px;
+	padding-right: 20px;
+	text-align: right;
+	color: #aaa;
+	border-right: 8px solid #aaa;
+}
+div#keyboard {
+	bottom: 10px;
+}
+div.key {
+	float: left;
+	margin: 2px;
+	width: 60px;
+	height: 60px;
+	line-height: 60px;
+	text-align: center;
+	font-weight: bold;
+	font-size: 18px;
+	cursor: pointer;
+	background: #eee;
+	color: #555;
+}
+div#clearkey {
+	width: 90px;
+	font-weight: normal;
+}
+div#spacekey {
+	width: 376px;
+	font-weight: normal;
+}
+div#bkspkey {
+	width: 156px;
+	font-weight: normal;
+}
+div.br {
+	float: none;
+	clear: both;
+}
+div.box {
+	float: left;
+	margin: 2px;
+	width: 116px;
+	height: 116px;
+	line-height: 116px;
+	text-align: center;
+	font-weight: bold;
+	font-size: 36px;
+	cursor: pointer;
+	border: 4px solid #eee;
+	background: #eee;
+	color: #555;
+}
+div.blank {
+	background: #fff;
+	color: #aaa;
+	cursor: default;
+}
+div.cursor {
+	border: 4px solid #333;
+}
+div.matchinfo {
+	float: left;
+	font-weight: bold;
+	font-size: 18px;
+	margin: 4px;
+	padding: 8px 0px;
+	color: #bbb;
+}
+div.err {
+	color: #e77;
+}
+div.match {
+	float: left;
+	font-weight: bold;
+	font-size: 18px;
+	margin: 4px;
+	padding: 8px 0px;
+	width: 120px;
+	text-align: center;
+	cursor: pointer;
+	background: #eee;
+	color: #555;
+}
+div.inactive {
+	background: #777;
+	color: #aaa;
+}
+--></style>
+</head>
+<head>
+<script src="wordlist.js"></script>
+<script>
+
+var cursor = 0;
+var boxes = [];
+var word = [' ',' ',' ',' ',' '];
+var keys = [];
+
+function updateFilter() {
+	let matches = document.getElementById("matches");
+	while(matches.firstChild) {
+		matches.removeChild(matches.lastChild);
+	}
+	let filter = filterWords(word, 10);
+	if(filter.length==0) {
+		let info = document.createElement("div");
+		info.classList.add('matchinfo', 'err');
+		info.innerHTML = "NO MATCHES";
+		matches.appendChild(info);
+	}
+	else if(filter.length>10) {
+		let info = document.createElement("div");
+		info.classList.add('matchinfo');
+		info.innerHTML = "TOO MANY MATCHES";
+		matches.appendChild(info);
+	}
+	else {
+		for(const s of filter) {
+			let m = document.createElement("div");
+			m.classList.add('match');
+			m.innerHTML = s.toUpperCase();
+			
+			m.addEventListener('click', function() {
+				setWord(s);
+			});
+			
+			matches.appendChild(m);
+		}
+	}
+}
+
+function toggleClass(e, cls, set) {
+	if(set)
+		e.classList.add(cls);
+	else
+		e.classList.remove(cls);
+}
+
+function updateBoxes() {
+	for(let i=0; i<boxes.length; i++) {
+		let box = boxes[i];
+		toggleClass(box, 'cursor', i==cursor);
+		toggleClass(box, 'blank', word[i]==' ');
+		toggleClass(box, 'inactive', word[i]!=' ' && inactiveChars.has(word[i]));
+	}
+}
+
+function setChar(i, ch) {
+	boxes[i].innerHTML = ch.toUpperCase();
+	word[i] = ch;
+}
+
+function typeKey(ch) {
+	if(cursor<boxes.length) {
+		setChar(cursor, ch);
+		cursor++;
+		updateBoxes();
+		updateFilter();
+	}
+}
+
+function blank(i) {
+	boxes[i].innerHTML = '&#x2731;';
+	word[i] = ' ';
+}
+
+function typeAny() {
+	if(cursor<boxes.length) {
+		blank(cursor);
+		cursor++;
+		updateBoxes();
+		updateFilter();
+	}
+}
+
+function backspace() {
+	if(cursor>0) {
+		cursor--;
+		blank(cursor);
+		updateBoxes();
+		updateFilter();
+	}
+}
+
+function clearInput() {
+	cursor = 0;
+	for(let i=0; i<5; i++) {
+		blank(i);
+	}
+	updateBoxes();
+	updateFilter();
+}
+
+function setWord(s) {
+	cursor = 5;
+	for(let i=0; i<5; i++) {
+		setChar(i, s.charAt(i));
+	}
+	updateBoxes();
+	updateFilter();
+}
+
+function boxClick(i) {
+	if(word[i]!=' ') {
+		toggleInactive(word[i]);
+		updateBoxes();
+		updateFilter();
+		for(let key of keys) {
+			toggleClass(key, 'inactive', inactiveChars.has(key.id));
+		}
+	}
+}
+
+window.onload = function() {
+	let kb = document.getElementById("keys");
+	const layout = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
+	for(let row=0; row<layout.length; row++) {
+		for(let i=0; i<layout[row].length; i++) {
+			let key = document.createElement("div");
+			key.classList.add('key');
+			if(i==0)
+				key.style.marginLeft = (row*32+2) + "px";
+			const ch = layout[row].charAt(i);
+			key.id = ch;
+			key.innerHTML = ch.toUpperCase();
+			
+			key.addEventListener('click', function() {
+				typeKey(ch);
+			});
+			
+			kb.appendChild(key);
+			keys.push(key);
+		}
+		let br = document.createElement("div");
+		br.classList.add('br');
+		kb.appendChild(br);
+	}
+	
+	let input = document.getElementById("input");
+	for(let i=0; i<5; i++) {
+		let box = document.createElement("div");
+		box.classList.add('box', 'blank');
+		if(i==cursor)
+			box.classList.add('cursor');
+		box.innerHTML = '&#x2731;';
+		
+		box.addEventListener('click', function() {
+			boxClick(i);
+		});
+		
+		boxes[i] = box;
+		input.appendChild(box);
+	}
+	updateFilter();
+	
+	window.onkeydown = function(e) {
+		let key = e.key.toLowerCase();
+		if(key=="backspace")
+			backspace();
+		else if(key=="escape")
+			clearInput();
+		else if(key.length==1 && key>='a' && key<='z')
+			typeKey(e.key);
+		else if(key.length==1)
+			typeAny();
+	}
+}
+
+</script>
+<body>
+
+<div id="top" class="center">
+	<div id="header"><a href="https://www.nytimes.com/games/wordle/index.html" target="_blank">Open <b>Wordle</b> &raquo;</a></div>
+	<div id="input"></div>
+	<p class="help">You can click a typed character to DEACTIVATE it.<br/>
+	<b>&#x2731;</b> matches ALL characters except DEACTIVATED.</p>
+	<p>Matches:</p>
+	<div id="matches"><div class="matchinfo">...</div></div>
+</div>
+
+<div id="keyboard" class="center">
+	<div id="keys"></div>
+	<div>
+		<div id="clearkey" class="key" onclick="clearInput()">ESC</div>
+		<div id="spacekey" class="key" onclick="typeAny()"><b>&#x2731;</b>&nbsp;ANY</div>
+		<div id="bkspkey" class="key" onclick="backspace()">BACKSP</div>
+	</div>
+</div>
+
+</body>
+</html>
